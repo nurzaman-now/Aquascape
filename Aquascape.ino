@@ -870,7 +870,8 @@ void setup() {
   currentLampMode    = pref.getInt("lamp_mode", 1);
   bubbleLevel        = pref.getInt("buih_lvl", 100);
   manualOverride     = pref.getBool("man_lamp", false);
-  lampState          = pref.getBool("lamp_st", false);
+  bool savedLampState = pref.getBool("lamp_st", false);
+  lampState          = false; // Relai fisik selalu mulai dari kondisi OFF saat baru menyala
 
   // Setup Hardware PWM channels: Channel 0 for Feed, Channel 1 for Bubble
   setupServoPin(SERVO1_PIN, 0);
@@ -883,7 +884,7 @@ void setup() {
   Serial.println("--- Restoring Bubble Servo Position ---");
   setBubbleLevel(bubbleLevel);
 
-  if (manualOverride && lampState) {
+  if (manualOverride && savedLampState) {
     setLampColor(currentLampMode);
   }
 
