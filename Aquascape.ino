@@ -342,6 +342,7 @@ void feedFish() {
 }
 
 void checkDayChange(struct tm &timeinfo) {
+  if (timeinfo.tm_year < 120) return; // Ignore if time is not yet synced via NTP (epoch 1970)
   if (lastFeedDay != timeinfo.tm_mday) {
     lastFeedDay = timeinfo.tm_mday;
     feedCountToday = 0;
@@ -505,16 +506,21 @@ String getNextFeedingSchedule(int currentHour, int currentMinute) {
   int f1Min  = feed1H * 60 + feed1M;
   int f2Min  = feed2H * 60 + feed2M;
 
+  int firstH = feed1H, firstM = feed1M;
+  int secondH = feed2H, secondM = feed2M;
+
   if (f1Min > f2Min) {
-    int tmp = f1Min; f1Min = f2Min; f2Min = tmp;
+    int tmpMin = f1Min; f1Min = f2Min; f2Min = tmpMin;
+    firstH = feed2H; firstM = feed2M;
+    secondH = feed1H; secondM = feed1M;
   }
 
   if (curMin < f1Min) {
-    return formatTime(feed1H, feed1M) + " WIB";
+    return formatTime(firstH, firstM) + " WIB";
   } else if (curMin < f2Min) {
-    return formatTime(feed2H, feed2M) + " WIB";
+    return formatTime(secondH, secondM) + " WIB";
   } else {
-    return formatTime(feed1H, feed1M) + " WIB (besok)";
+    return formatTime(firstH, firstM) + " WIB (besok)";
   }
 }
 
@@ -908,7 +914,7 @@ void setup() {
     initTelegramConnection();
   } else {
     WiFi.disconnect(false);
-    Serial.println("\nNot connected to home WiFi. Configure via AP 'Akuarium-Setup' (192.168.4.1).");
+    Serial.println("\nNot connected to home WiFi. Configure via AP '" + String(AP_SSID) + "' (192.168.4.1).");
   }
 }
 
@@ -1010,6 +1016,7 @@ void loop() {
         bot.sendMessage(CHAT_ID, "💡 *Laporan Otomatis:*\nLampu akuarium telah menyala sesuai jadwal (Pukul " + formatTime(timeinfo.tm_hour, timeinfo.tm_min) + " WIB, Mode Warna " + String(currentLampMode) + ").", "Markdown");
       }
     } else if (!mustTurnOn && lampState) {
+      lampTransition.active = false;
       digitalWrite(RELAY_PIN, RELAY_OFF);
       lampState = false;
       pref.putInt("l_min_tdy", lampOnMinutesToday);
