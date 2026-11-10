@@ -69,11 +69,9 @@ Kompatibel dengan ESP32 Arduino Core versi 2.x maupun 3.x (menggunakan penangana
 ### 1. Persiapan Kredensial & Secrets
 Kredensial rahasia (token bot dan SSID WiFi) dipisahkan agar aman dan tidak bocor saat di-*push* ke GitHub.
 
-Salin template `secrets.h.example` menjadi `secrets.h` (atau `.env.example` ke `.env`):
+Salin template `secrets.h.example` menjadi `secrets.h`:
 ```bash
 cp secrets.h.example secrets.h
-# atau untuk referensi env:
-cp .env.example .env
 ```
 Buka `secrets.h` dan sesuaikan nilainya:
 ```cpp
@@ -85,7 +83,7 @@ Buka `secrets.h` dan sesuaikan nilainya:
 #define CHAT_ID    "YOUR_TELEGRAM_CHAT_ID"
 ```
 
-> File `secrets.h` dan `.env` sudah otomatis masuk ke dalam `.gitignore` sehingga tidak akan terunggah ke repositori publik.
+> File `secrets.h` sudah otomatis masuk ke dalam `.gitignore` sehingga tidak akan terunggah ke repositori publik.
 
 ### 2. Unggah Kode ke Board
 - Buka `Aquascape.ino` di Arduino IDE.

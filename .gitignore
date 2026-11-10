@@ -1,5 +1,4 @@
-# Kredensial rahasia & file env
-.env
+# Kredensial rahasia
 secrets.h
 
 # Build artifacts & konfigurasi lokal editor
