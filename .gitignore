@@ -1,0 +1,11 @@
+# Kredensial rahasia & file env
+.env
+secrets.h
+
+# Build artifacts & konfigurasi lokal editor
+.vscode/
+.idea/
+build/
+*.bin
+*.elf
+*.hex
