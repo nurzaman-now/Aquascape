@@ -902,6 +902,8 @@ void setup() {
 
   if (savedSSID.length() > 0) {
     Serial.println("Connecting to WiFi: " + savedSSID);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
     WiFi.begin(savedSSID.c_str(), savedPass.c_str());
 
     unsigned long startAttemptTime = millis();
@@ -914,8 +916,11 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     initTelegramConnection();
   } else {
-    WiFi.disconnect(false);
-    Serial.println("\nNot connected to home WiFi. Configure via AP '" + String(AP_SSID) + "' (192.168.4.1).");
+    // Jangan disconnect; router mungkin masih proses booting setelah listrik menyala.
+    // Biarkan background auto-reconnect di loop() terus mencoba menyambung secara otomatis.
+    Serial.println("\nWiFi belum tersambung (kemungkinan router masih proses booting).");
+    Serial.println("Koneksi otomatis di latar belakang tetap aktif mencari WiFi '" + savedSSID + "'.");
+    lastWifiCheck = millis();
   }
 }
 
@@ -964,8 +969,11 @@ void loop() {
   bool isConnected = (WiFi.status() == WL_CONNECTED);
 
   if (!isConnected) {
-    if (savedSSID.length() > 0 && millis() - lastWifiCheck > 30000) {
+    if (savedSSID.length() > 0 && millis() - lastWifiCheck > 15000) {
       lastWifiCheck = millis();
+      Serial.println("[WiFi] Menghubungkan kembali secara otomatis ke " + savedSSID + "...");
+      WiFi.disconnect(false);
+      delay(50);
       WiFi.begin(savedSSID.c_str(), savedPass.c_str());
     }
   } else {
