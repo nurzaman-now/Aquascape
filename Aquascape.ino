@@ -57,23 +57,33 @@ int sessionCount = 0;
 String savedLampScheduleStr = "09:00-13:00, 17:00-21:00";
 int lampOnMinutesToday = 0;
 int lastLampCountMinute = -1;
-int feed1H = 8, feed1M = 0;
-int feed2H = 16, feed2M = 0;
+struct FeedTime {
+  int h;
+  int m;
+};
+
+const int MAX_FEED_SESSIONS = 5;
+FeedTime feedSessions[MAX_FEED_SESSIONS];
+int feedSessionCount = 2;
+int maxFeedPerDay = 2;
+String savedFeedScheduleStr = "08:00, 16:00";
 
 int currentLampMode = 1;
 bool lampState = false;
-bool manualOverride = false;
+bool lastScheduledState = false;
+int pendingLampMode = 1;
 int bubbleLevel = 100;
 
 int lastFedMinute = -1;
 int feedCountToday = 0;
 int lastFeedDay = -1;
-const int MAX_FEED_PER_DAY = 2;
 String lastFedTime = "--:--";
 bool waitingFeedConfirmation = false;
 unsigned long feedConfirmationTime = 0;
 bool waitingLampConfirmation = false;
 unsigned long lampConfirmationTime = 0;
+bool waitingLampOffConfirmation = false;
+unsigned long lampOffConfirmationTime = 0;
 bool manualLampConfirmed = false;
 unsigned long lastBotCheck = 0;
 const unsigned long botInterval = 1500;
@@ -349,6 +359,7 @@ void checkDayChange(struct tm &timeinfo) {
     lastFedTime = "--:--";
     lampOnMinutesToday = 0;
     manualLampConfirmed = false;
+    lastScheduledState = false;
     pref.putInt("f_day", lastFeedDay);
     pref.putInt("f_cnt", feedCountToday);
     pref.putString("last_fed", lastFedTime);
@@ -478,14 +489,94 @@ bool shouldLampBeOn(int currentMinute) {
   return false;
 }
 
+bool applyFeedSchedule(String input, String &err) {
+  FeedTime tempFeed[MAX_FEED_SESSIONS];
+  int count = 0;
+  int startIdx = 0, len = input.length();
+
+  while (startIdx < len) {
+    int commaIdx = input.indexOf(',', startIdx);
+    if (commaIdx == -1) commaIdx = input.indexOf(';', startIdx);
+    if (commaIdx == -1) commaIdx = len;
+
+    String token = input.substring(startIdx, commaIdx);
+    token.trim();
+    startIdx = commaIdx + 1;
+    if (token.length() == 0) continue;
+
+    if (count >= MAX_FEED_SESSIONS) {
+      err = "⚠️ Maksimal hanya " + String(MAX_FEED_SESSIONS) + " jadwal pakan per hari yang didukung.";
+      return false;
+    }
+
+    int h, m;
+    if (!parseHoursMinutes(token, h, m)) {
+      err = "⚠️ Format jam salah pada '" + token + "'. Gunakan format HH:MM (contoh: 07:00, 16:00).";
+      return false;
+    }
+
+    for (int i = 0; i < count; i++) {
+      if (tempFeed[i].h == h && tempFeed[i].m == m) {
+        err = "⚠️ Jam pakan '" + token + "' terdaftar dua kali.";
+        return false;
+      }
+    }
+
+    tempFeed[count++] = {h, m};
+  }
+
+  if (count == 0) {
+    err = "⚠️ Tidak ada jadwal pakan yang valid ditemukan.";
+    return false;
+  }
+
+  // Urutkan jadwal pakan dari jam paling awal
+  for (int i = 0; i < count - 1; i++) {
+    for (int j = i + 1; j < count; j++) {
+      if ((tempFeed[i].h * 60 + tempFeed[i].m) > (tempFeed[j].h * 60 + tempFeed[j].m)) {
+        FeedTime tmp = tempFeed[i];
+        tempFeed[i] = tempFeed[j];
+        tempFeed[j] = tmp;
+      }
+    }
+  }
+
+  feedSessionCount = count;
+  maxFeedPerDay = feedSessionCount;
+  for (int i = 0; i < count; i++) feedSessions[i] = tempFeed[i];
+
+  savedFeedScheduleStr = input;
+  pref.putString("feed_sched", savedFeedScheduleStr);
+  pref.putInt("f_max", maxFeedPerDay);
+  return true;
+}
+
+String formatFeedScheduleList() {
+  String resp = "";
+  for (int i = 0; i < feedSessionCount; i++) {
+    if (i > 0) resp += ", ";
+    resp += "`" + formatTime(feedSessions[i].h, feedSessions[i].m) + "`";
+  }
+  return resp;
+}
+
+bool isCurrentTimeFeedSchedule(int curH, int curM) {
+  for (int i = 0; i < feedSessionCount; i++) {
+    if (feedSessions[i].h == curH && feedSessions[i].m == curM) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool processFeeding(String &errorMessage) {
   struct tm timeinfo;
   if (getLocalTime(&timeinfo, 100)) {
     checkDayChange(timeinfo);
   }
 
-  if (feedCountToday >= MAX_FEED_PER_DAY) {
-    errorMessage = "⚠️ *Pemberian Pakan Dibatalkan!*\nJatah pakan hari ini sudah mencapai batas maksimal (" + String(MAX_FEED_PER_DAY) + " kali sehari) untuk mencegah overfeeding.";
+  if (feedCountToday >= maxFeedPerDay) {
+    errorMessage = "⚠️ *Pemberian Pakan Dibatalkan!*\nJatah pakan hari ini sudah mencapai batas maksimal (" + String(maxFeedPerDay) + " kali sehari) untuk mencegah overfeeding.";
     return false;
   }
 
@@ -502,26 +593,17 @@ bool processFeeding(String &errorMessage) {
 }
 
 String getNextFeedingSchedule(int currentHour, int currentMinute) {
+  if (feedSessionCount == 0) return "-";
   int curMin = currentHour * 60 + currentMinute;
-  int f1Min  = feed1H * 60 + feed1M;
-  int f2Min  = feed2H * 60 + feed2M;
 
-  int firstH = feed1H, firstM = feed1M;
-  int secondH = feed2H, secondM = feed2M;
-
-  if (f1Min > f2Min) {
-    int tmpMin = f1Min; f1Min = f2Min; f2Min = tmpMin;
-    firstH = feed2H; firstM = feed2M;
-    secondH = feed1H; secondM = feed1M;
+  for (int i = 0; i < feedSessionCount; i++) {
+    int fMin = feedSessions[i].h * 60 + feedSessions[i].m;
+    if (fMin > curMin) {
+      return formatTime(feedSessions[i].h, feedSessions[i].m) + " WIB";
+    }
   }
 
-  if (curMin < f1Min) {
-    return formatTime(firstH, firstM) + " WIB";
-  } else if (curMin < f2Min) {
-    return formatTime(secondH, secondM) + " WIB";
-  } else {
-    return formatTime(firstH, firstM) + " WIB (besok)";
-  }
+  return formatTime(feedSessions[0].h, feedSessions[0].m) + " WIB (besok)";
 }
 
 void setBubbleLevel(int percentage) {
@@ -531,19 +613,6 @@ void setBubbleLevel(int percentage) {
   moveServo(SERVO2_PIN, 1, angle, 600, false);
   bubbleLevel = percentage;
   pref.putInt("buih_lvl", bubbleLevel);
-}
-
-void setTimeSchedule(const char* keyH, const char* keyM, int &varH, int &varM, String valStr, String scheduleName, String chatId) {
-  int h, m;
-  if (parseHoursMinutes(valStr, h, m)) {
-    varH = h;
-    varM = m;
-    pref.putInt(keyH, h);
-    pref.putInt(keyM, m);
-    bot.sendMessage(chatId, "✅ Jadwal " + scheduleName + " disimpan: `" + formatTime(h, m) + "`", "Markdown");
-  } else {
-    bot.sendMessage(chatId, "⚠️ Format waktu salah! Gunakan format HH:MM (contoh: 08:30).", "");
-  }
 }
 
 // --- NON-BLOCKING LIGHT SWITCH (KANDILA MC-5) ---
@@ -606,54 +675,58 @@ void setLampColor(int mode) {
 }
 
 void turnLampOnManual(int mode) {
-  manualOverride = true;
   if (lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY) manualLampConfirmed = true;
-  pref.putBool("man_lamp", true);
   setLampColor(mode);
 }
 
 void turnLampOffManual() {
   lampTransition.active = false;
-  manualOverride = true;
   manualLampConfirmed = false;
   lampState = false;
   pref.putInt("l_min_tdy", lampOnMinutesToday);
-  pref.putBool("man_lamp", true);
   pref.putBool("lamp_st", false);
   digitalWrite(RELAY_PIN, RELAY_OFF);
 }
 
-void askLampConfirmation(String chatId) {
-  String confirmMsg = "⚠️ *Konfirmasi Lampu Manual*\n";
-  confirmMsg += "Lampu sudah menyala selama *" + String(lampOnMinutesToday / 60) + " jam " + String(lampOnMinutesToday % 60) + " menit* hari ini (batas harian: 8 jam).\n\n";
-  confirmMsg += "Apakah anda yakin ingin menyalakan lampu sekarang?";
+void askLampConfirmation(String chatId, String reason, int targetMode) {
+  pendingLampMode = targetMode;
   waitingLampConfirmation = true;
   lampConfirmationTime = millis();
+  String confirmMsg = "⚠️ *Konfirmasi Lampu*\n";
+  confirmMsg += reason + "\n\n";
+  confirmMsg += "Apakah anda yakin ingin menyalakan lampu sekarang?";
   bot.sendMessageWithReplyKeyboard(chatId, confirmMsg, "Markdown", "[[\"/ya_lampu\", \"/batal\"]]", true, false, false);
+}
+
+void askLampOffConfirmation(String chatId) {
+  waitingLampOffConfirmation = true;
+  lampOffConfirmationTime = millis();
+  String confirmMsg = "⚠️ *Konfirmasi Matikan Lampu*\n";
+  confirmMsg += "Saat ini *sedang dalam jadwal lampu menyala*.\n\n";
+  confirmMsg += "Apakah anda yakin ingin mematikan lampu sekarang? (Lampu akan tetap padam sampai sesi jadwal berikutnya).";
+  bot.sendMessageWithReplyKeyboard(chatId, confirmMsg, "Markdown", "[[\"/ya_lampu_off\", \"/batal\"]]", true, false, false);
 }
 
 // --- MENU & TELEGRAM HANDLER ---
 void sendHelpMenu(String chatId) {
   String msg = "🤖 *Panel Kontrol Akuarium ESP32-S3*\n\n";
   msg += "• `/status` - Cek status lampu, buih, pakan & IP\n";
-  msg += "• `/pakan` - Beri makan ikan sekarang (Maks 2x/hari)\n";
+  msg += "• `/pakan` - Beri makan ikan sekarang\n";
   msg += "• `/reset_pakan` - Reset kuota pakan hari ini\n";
   msg += "• `/buih [0-100]` - Atur level buih\n";
   msg += "• `/buih_on` / `/buih_off` - Buih Full (100%) / Mati (0%)\n";
   msg += "• `/lampu_on` / `/lampu_off` - Kontrol lampu\n";
-  msg += "• `/warna1`, `/warna2`, `/warna3` - Pilih mode warna\n";
-  msg += "• `/otomatis` - Kembali ke jadwal otomatis\n\n";
-  msg += "📌 *Atur Jadwal (Total Lampu Maks 8 Jam):*\n";
-  msg += "• `/set_lampu [sesi, sesi, ...]`\n";
-  msg += "  _Contoh 1 sesi:_ `/set_lampu 10:00-18:00`\n";
-  msg += "  _Contoh 2 sesi:_ `/set_lampu 09:00-13:00, 17:00-21:00`\n";
-  msg += "  _Contoh 3 sesi:_ `/set_lampu 07:00-09:00, 12:00-14:00, 18:00-22:00`\n";
-  msg += "• `/set_pakan1` | `/set_pakan2`\n";
+  msg += "• `/warna1`, `/warna2`, `/warna3` - Pilih mode warna\n\n";
+  msg += "📌 *Atur Jadwal:*\n";
+  msg += "• `/set_lampu [sesi, sesi, ...]` (Maks total 8 jam)\n";
+  msg += "  _Contoh:_ `/set_lampu 09:00-13:00, 17:00-21:00`\n";
+  msg += "• `/set_pakan [jam, jam, ...]`\n";
+  msg += "  _Contoh:_ `/set_pakan 07:00, 16:00`\n";
 
   String keyboardJson = "["
                         "[\"/pakan\", \"/status\"],"
                         "[\"/buih_on\", \"/buih_off\"],"
-                        "[\"/lampu_on\", \"/lampu_off\", \"/otomatis\"],"
+                        "[\"/lampu_on\", \"/lampu_off\"],"
                         "[\"/warna1\", \"/warna2\", \"/warna3\"]"
                         "]";
   bot.sendMessageWithReplyKeyboard(chatId, msg, "Markdown", keyboardJson, true, false, false);
@@ -679,33 +752,74 @@ void handleTelegramMessages(int totalMessages) {
       setBubbleLevel(lvl);
       bot.sendMessage(chatId, "🫧 Level buih filter diatur ke: *" + String(bubbleLevel) + "%*", "Markdown");
     } else if (text == "/lampu_on") {
-      if (!lampState && lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed) {
-        askLampConfirmation(chatId);
+      struct tm timeinfo;
+      bool hasTime = getLocalTime(&timeinfo, 100);
+      int curMin = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
+      bool inSchedule = (curMin >= 0) ? shouldLampBeOn(curMin) : false;
+      bool overLimit = (lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed);
+
+      if (lampState) {
+        bot.sendMessage(chatId, "💡 Lampu sudah dalam keadaan menyala.", "");
+      } else if (!inSchedule || overLimit) {
+        String reason = "";
+        if (!inSchedule && overLimit) {
+          reason = "Saat ini *di luar jadwal otomatis* dan durasi lampu sudah mencapai batas 8 jam (" + String(lampOnMinutesToday / 60) + "j " + String(lampOnMinutesToday % 60) + "m).";
+        } else if (!inSchedule) {
+          reason = "Saat ini *di luar jadwal otomatis* lampu.";
+        } else {
+          reason = "Lampu sudah menyala selama *" + String(lampOnMinutesToday / 60) + " jam " + String(lampOnMinutesToday % 60) + " menit* hari ini (batas harian: 8 jam).";
+        }
+        askLampConfirmation(chatId, reason, currentLampMode);
       } else {
         bot.sendMessage(chatId, "⏳ Sedang memproses menyalakan lampu...", "");
         turnLampOnManual(currentLampMode);
-        bot.sendMessage(chatId, "💡 Lampu dinyalakan manual.", "");
+        bot.sendMessage(chatId, "💡 Lampu dinyalakan.", "");
       }
     } else if (text == "/lampu_off") {
-      bot.sendMessage(chatId, "⏳ Sedang memproses mematikan lampu...", "");
-      turnLampOffManual();
-      bot.sendMessage(chatId, "🌑 Lampu dimatikan manual.", "");
-    } else if (text == "/otomatis") {
-      bot.sendMessage(chatId, "⏳ Sedang memproses pengalihan ke jadwal otomatis...", "");
-      manualOverride = false;
-      manualLampConfirmed = false;
-      pref.putBool("man_lamp", false);
-      bot.sendMessage(chatId, "🔄 Kontrol lampu dikembalikan ke Jadwal Otomatis.", "");
+      struct tm timeinfo;
+      bool hasTime = getLocalTime(&timeinfo, 100);
+      int curMin = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
+      bool inSchedule = (curMin >= 0) ? shouldLampBeOn(curMin) : false;
+
+      if (!lampState) {
+        bot.sendMessage(chatId, "🌑 Lampu sudah dalam keadaan padam.", "");
+      } else if (inSchedule) {
+        askLampOffConfirmation(chatId);
+      } else {
+        bot.sendMessage(chatId, "⏳ Sedang memproses mematikan lampu...", "");
+        turnLampOffManual();
+        bot.sendMessage(chatId, "🌑 Lampu dimatikan.", "");
+      }
     } else if (text == "/warna1" || text == "/warna2" || text == "/warna3") {
       int mode = text.substring(6).toInt();
-      if (!lampState && lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed) {
+      struct tm timeinfo;
+      bool hasTime = getLocalTime(&timeinfo, 100);
+      int curMin = hasTime ? (timeinfo.tm_hour * 60 + timeinfo.tm_min) : -1;
+      bool inSchedule = (curMin >= 0) ? shouldLampBeOn(curMin) : false;
+      bool overLimit = (lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed);
+
+      if (lampState) {
         currentLampMode = mode;
         pref.putInt("lamp_mode", currentLampMode);
-        askLampConfirmation(chatId);
-      } else {
         bot.sendMessage(chatId, "⏳ Sedang memproses perubahan ke mode warna " + String(mode) + "...", "");
-        turnLampOnManual(mode);
+        setLampColor(mode);
         bot.sendMessage(chatId, "✅ Aktif: Mode Warna " + String(mode), "");
+      } else if (!inSchedule || overLimit) {
+        String reason = "";
+        if (!inSchedule && overLimit) {
+          reason = "Saat ini *di luar jadwal otomatis* dan durasi lampu telah mencapai batas 8 jam.\nIngin menyalakan lampu dengan *Mode Warna " + String(mode) + "*?";
+        } else if (!inSchedule) {
+          reason = "Saat ini *di luar jadwal otomatis* dan lampu sedang padam.\nIngin menyalakan lampu dengan *Mode Warna " + String(mode) + "*?";
+        } else {
+          reason = "Lampu sudah menyala selama *" + String(lampOnMinutesToday / 60) + " jam " + String(lampOnMinutesToday % 60) + " menit* hari ini.\nIngin menyalakan lampu dengan *Mode Warna " + String(mode) + "*?";
+        }
+        askLampConfirmation(chatId, reason, mode);
+      } else {
+        currentLampMode = mode;
+        pref.putInt("lamp_mode", currentLampMode);
+        bot.sendMessage(chatId, "⏳ Sedang memproses menyalakan lampu ke mode warna " + String(mode) + "...", "");
+        turnLampOnManual(mode);
+        bot.sendMessage(chatId, "✅ Lampu dinyalakan: Mode Warna " + String(mode), "");
       }
     } else if (text == "/pakan") {
       struct tm timeinfo;
@@ -713,11 +827,11 @@ void handleTelegramMessages(int totalMessages) {
         checkDayChange(timeinfo);
       }
 
-      if (feedCountToday >= MAX_FEED_PER_DAY) {
-        bot.sendMessage(chatId, "⚠️ *Pemberian Pakan Dibatalkan!*\nJatah pakan hari ini sudah mencapai batas maksimal (" + String(MAX_FEED_PER_DAY) + " kali sehari) untuk mencegah overfeeding.", "Markdown");
+      if (feedCountToday >= maxFeedPerDay) {
+        bot.sendMessage(chatId, "⚠️ *Pemberian Pakan Dibatalkan!*\nJatah pakan hari ini sudah mencapai batas maksimal (" + String(maxFeedPerDay) + " kali sehari) untuk mencegah overfeeding.", "Markdown");
       } else {
         String lastFedInfo = "Ikan belum diberi makan hari ini";
-        String nextFeedInfo = formatTime(feed1H, feed1M) + " WIB";
+        String nextFeedInfo = (feedSessionCount > 0) ? (formatTime(feedSessions[0].h, feedSessions[0].m) + " WIB") : "-";
 
         if (getLocalTime(&timeinfo, 100)) {
           if (feedCountToday > 0 && lastFedTime != "--:--") {
@@ -727,7 +841,7 @@ void handleTelegramMessages(int totalMessages) {
         }
 
         String confirmMsg = lastFedInfo + " dan akan di berikan makan lagi di jam " + nextFeedInfo + ".\n\n";
-        confirmMsg += "Apakah anda yakin akan memberikan pakan sekarang? Karena maksimal pakan hanya " + String(MAX_FEED_PER_DAY) + " kali sehari.";
+        confirmMsg += "Apakah anda yakin akan memberikan pakan sekarang? Karena maksimal pakan hanya " + String(maxFeedPerDay) + " kali sehari.";
 
         waitingFeedConfirmation = true;
         feedConfirmationTime = millis();
@@ -745,7 +859,7 @@ void handleTelegramMessages(int totalMessages) {
         bot.sendMessage(chatId, "⏳ Sedang memproses pemberian pakan...", "");
         String errFeed = "";
         if (processFeeding(errFeed)) {
-          bot.sendMessage(chatId, "🐟 Pakan berhasil diberikan! (" + String(feedCountToday) + "/" + String(MAX_FEED_PER_DAY) + " kali hari ini)", "Markdown");
+          bot.sendMessage(chatId, "🐟 Pakan berhasil diberikan! (" + String(feedCountToday) + "/" + String(maxFeedPerDay) + " kali hari ini)", "Markdown");
         } else {
           bot.sendMessage(chatId, errFeed, "Markdown");
         }
@@ -754,17 +868,31 @@ void handleTelegramMessages(int totalMessages) {
     } else if (text == "/ya_lampu") {
       if (!waitingLampConfirmation || (millis() - lampConfirmationTime > 120000)) {
         waitingLampConfirmation = false;
-        bot.sendMessage(chatId, "⚠️ Konfirmasi sudah kadaluarsa. Silakan ketik /lampu_on kembali.", "");
+        bot.sendMessage(chatId, "⚠️ Konfirmasi sudah kadaluarsa. Silakan ulangi perintah.", "");
       } else {
         waitingLampConfirmation = false;
         bot.sendMessage(chatId, "⏳ Sedang memproses menyalakan lampu...", "");
+        currentLampMode = pendingLampMode;
+        pref.putInt("lamp_mode", currentLampMode);
         turnLampOnManual(currentLampMode);
-        bot.sendMessage(chatId, "💡 Lampu berhasil dinyalakan manual (melewati batas 8 jam).", "");
+        bot.sendMessage(chatId, "💡 Lampu berhasil dinyalakan (Mode Warna " + String(currentLampMode) + ").", "");
+      }
+      sendHelpMenu(chatId);
+    } else if (text == "/ya_lampu_off") {
+      if (!waitingLampOffConfirmation || (millis() - lampOffConfirmationTime > 120000)) {
+        waitingLampOffConfirmation = false;
+        bot.sendMessage(chatId, "⚠️ Konfirmasi sudah kadaluarsa. Silakan ulangi perintah.", "");
+      } else {
+        waitingLampOffConfirmation = false;
+        bot.sendMessage(chatId, "⏳ Sedang memproses mematikan lampu...", "");
+        turnLampOffManual();
+        bot.sendMessage(chatId, "🌑 Lampu dimatikan (tetap padam sampai sesi jadwal berikutnya).", "");
       }
       sendHelpMenu(chatId);
     } else if (text == "/batal") {
       waitingFeedConfirmation = false;
       waitingLampConfirmation = false;
+      waitingLampOffConfirmation = false;
       bot.sendMessage(chatId, "❌ Perintah dibatalkan.", "");
       sendHelpMenu(chatId);
     } else if (text == "/reset_pakan") {
@@ -778,24 +906,26 @@ void handleTelegramMessages(int totalMessages) {
       bot.sendMessage(chatId, "⏳ Sedang memproses pengambilan status...", "");
       struct tm timeinfo;
       String curTime = "--:--:--";
+      bool inSched = false;
       if (getLocalTime(&timeinfo, 100)) {
         checkDayChange(timeinfo);
         curTime = formatTime(timeinfo.tm_hour, timeinfo.tm_min) + ":" + (timeinfo.tm_sec < 10 ? "0" : "") + String(timeinfo.tm_sec);
+        inSched = shouldLampBeOn(timeinfo.tm_hour * 60 + timeinfo.tm_min);
       }
 
       String statusMsg = "📊 *STATUS AKUARIUM*\n\n";
       statusMsg += "🕒 Jam: `" + curTime + " WIB`\n";
-      statusMsg += "💡 Lampu: *" + String(lampState ? "NYALA" : "PADAM") + "* (Mode " + String(currentLampMode) + " - " + String(manualOverride ? "Manual" : "Otomatis") + ")\n";
+      statusMsg += "💡 Lampu: *" + String(lampState ? "NYALA" : "PADAM") + "* (Mode " + String(currentLampMode) + " | " + String(inSched ? "Sesuai Jadwal" : "Di Luar Jadwal") + ")\n";
       statusMsg += "🫧 Buih: *" + String(bubbleLevel) + "%*\n";
       statusMsg += "🌐 WiFi: `" + WiFi.SSID() + "`\n\n";
       statusMsg += "🗓️ *Jadwal Tersimpan:*\n";
-      statusMsg += "• Pakan Hari Ini: `" + String(feedCountToday) + "/" + String(MAX_FEED_PER_DAY) + " kali`";
+      statusMsg += "• Pakan Hari Ini: `" + String(feedCountToday) + "/" + String(maxFeedPerDay) + " kali`";
       if (lastFedTime != "--:--") {
         statusMsg += " (Terakhir: `" + lastFedTime + " WIB`)\n";
       } else {
         statusMsg += " (Belum makan)\n";
       }
-      statusMsg += "• Pakan 1: `" + formatTime(feed1H, feed1M) + "` | Pakan 2: `" + formatTime(feed2H, feed2M) + "`\n";
+      statusMsg += "• Jadwal Pakan (" + String(feedSessionCount) + "x/hari): " + formatFeedScheduleList() + "\n";
       statusMsg += "💡 *Jadwal Lampu Dinamis (" + String(sessionCount) + " Sesi):*\n";
       statusMsg += formatLampSessionList();
       statusMsg += "• Total Nyala Hari Ini: `" + String(lampOnMinutesToday / 60) + "j " + String(lampOnMinutesToday % 60) + "m` (Maks 8 jam)\n";
@@ -805,8 +935,7 @@ void handleTelegramMessages(int totalMessages) {
       bot.sendMessage(chatId, "⏳ Sedang memproses pengaturan jadwal lampu dinamis...", "");
       String scheduleErr = "";
       if (applyLampSchedule(text.substring(11), scheduleErr)) {
-        manualOverride = false;
-        pref.putBool("man_lamp", false);
+        lastScheduledState = false;
         int totalPlanMinutes = calculateTotalLampDuration();
         String resp = "✅ *Jadwal Lampu Dinamis Berhasil Disimpan!*\n\n";
         resp += formatLampSessionList();
@@ -815,15 +944,17 @@ void handleTelegramMessages(int totalMessages) {
       } else {
         bot.sendMessage(chatId, scheduleErr, "Markdown");
       }
-    } else if (text.startsWith("/set_pakan")) {
-      bool isP1 = text.startsWith("/set_pakan1 ");
-      const char* kh = isP1 ? "f1_h" : "f2_h";
-      const char* km = isP1 ? "f1_m" : "f2_m";
-      int &h = isP1 ? feed1H : feed2H;
-      int &m = isP1 ? feed1M : feed2M;
-      String name = isP1 ? "Pakan 1" : "Pakan 2";
-      bot.sendMessage(chatId, "⏳ Sedang memproses jadwal " + name + "...", "");
-      setTimeSchedule(kh, km, h, m, text.substring(12), name, chatId);
+    } else if (text.startsWith("/set_pakan ")) {
+      bot.sendMessage(chatId, "⏳ Sedang memproses pengaturan jadwal pakan...", "");
+      String feedErr = "";
+      if (applyFeedSchedule(text.substring(11), feedErr)) {
+        String resp = "✅ *Jadwal Pakan Berhasil Disimpan!*\n\n";
+        resp += "• Jadwal: " + formatFeedScheduleList() + "\n";
+        resp += "• Kuota Maksimal Harian: *" + String(maxFeedPerDay) + " kali sehari*.\n";
+        bot.sendMessage(chatId, resp, "Markdown");
+      } else {
+        bot.sendMessage(chatId, feedErr, "Markdown");
+      }
     } else {
       bot.sendMessage(chatId, "❓ Perintah tidak dikenali. Ketik /help untuk melihat menu.", "");
     }
@@ -860,18 +991,17 @@ void setup() {
   String dummyErr = "";
   applyLampSchedule(savedLampScheduleStr, dummyErr);
   lampOnMinutesToday = pref.getInt("l_min_tdy", 0);
-  feed1H             = pref.getInt("f1_h", 8);
-  feed1M             = pref.getInt("f1_m", 0);
-  feed2H             = pref.getInt("f2_h", 16);
-  feed2M             = pref.getInt("f2_m", 0);
+  savedFeedScheduleStr = pref.getString("feed_sched", "08:00, 16:00");
+  String dummyFeedErr = "";
+  applyFeedSchedule(savedFeedScheduleStr, dummyFeedErr);
+  maxFeedPerDay      = pref.getInt("f_max", feedSessionCount);
   feedCountToday     = pref.getInt("f_cnt", 0);
   lastFeedDay        = pref.getInt("f_day", -1);
   lastFedTime        = pref.getString("last_fed", "--:--");
   currentLampMode    = pref.getInt("lamp_mode", 1);
   bubbleLevel        = pref.getInt("buih_lvl", 100);
-  manualOverride     = pref.getBool("man_lamp", false);
-  bool savedLampState = pref.getBool("lamp_st", false);
   lampState          = false; // Relai fisik selalu mulai dari kondisi OFF saat baru menyala
+  lastScheduledState = false;
 
   // Setup Hardware PWM channels: Channel 0 for Feed, Channel 1 for Bubble
   setupServoPin(SERVO1_PIN, 0);
@@ -883,10 +1013,6 @@ void setup() {
   // Restore Bubble Servo position based on saved level
   Serial.println("--- Restoring Bubble Servo Position ---");
   setBubbleLevel(bubbleLevel);
-
-  if (manualOverride && savedLampState) {
-    setLampColor(currentLampMode);
-  }
 
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(AP_SSID, AP_PASS);
@@ -936,9 +1062,9 @@ void handleSerialCommands() {
     if (cmd.equalsIgnoreCase("pakan")) {
       String errFeed = "";
       if (processFeeding(errFeed)) {
-        Serial.printf("[Console] Feeding executed successfully (%d/%d today).\n", feedCountToday, MAX_FEED_PER_DAY);
+        Serial.printf("[Console] Feeding executed successfully (%d/%d today).\n", feedCountToday, maxFeedPerDay);
       } else {
-        Serial.println("[Console] Feeding BLOCKED: Daily quota reached (2 times a day)!");
+        Serial.printf("[Console] Feeding BLOCKED: Daily quota reached (%d times a day)!\n", maxFeedPerDay);
       }
     } else if (cmd.equalsIgnoreCase("reset_pakan")) {
       feedCountToday = 0;
@@ -1005,8 +1131,6 @@ void loop() {
 
       if (lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed) {
         turnLampOffManual();
-        manualOverride = false;
-        pref.putBool("man_lamp", false);
         if (isConnected) {
           bot.sendMessage(CHAT_ID, "⚠️ *Proteksi Lampu:*\nLampu otomatis dipadamkan karena telah mencapai batas maksimal 8 jam hari ini untuk mencegah alga/lumut.\n\nJika ingin menyalakan kembali secara manual, ketik /lampu_on.", "Markdown");
         }
@@ -1016,15 +1140,20 @@ void loop() {
     lastLampCountMinute = -1;
   }
 
-  // Automatic Light Control (Dynamic Sessions & Max 8 Hours)
-  if (!manualOverride) {
-    bool mustTurnOn = shouldLampBeOn(currentMinute);
-    if (mustTurnOn && !lampState) {
+  // Automatic Light Control (Dynamic Sessions & Transition-Based)
+  bool scheduledOn = shouldLampBeOn(currentMinute);
+
+  if (scheduledOn && !lastScheduledState) {
+    lastScheduledState = true;
+    if (!lampState && lampOnMinutesToday < MAX_LAMP_MINUTES_PER_DAY) {
       setLampColor(currentLampMode);
       if (isConnected) {
         bot.sendMessage(CHAT_ID, "💡 *Laporan Otomatis:*\nLampu akuarium telah menyala sesuai jadwal (Pukul " + formatTime(timeinfo.tm_hour, timeinfo.tm_min) + " WIB, Mode Warna " + String(currentLampMode) + ").", "Markdown");
       }
-    } else if (!mustTurnOn && lampState) {
+    }
+  } else if (!scheduledOn && lastScheduledState) {
+    lastScheduledState = false;
+    if (lampState) {
       lampTransition.active = false;
       digitalWrite(RELAY_PIN, RELAY_OFF);
       lampState = false;
@@ -1037,19 +1166,18 @@ void loop() {
   }
 
   // Automatic Feeding Control
-  bool isFeedTime = (timeinfo.tm_hour == feed1H && timeinfo.tm_min == feed1M) ||
-                    (timeinfo.tm_hour == feed2H && timeinfo.tm_min == feed2M);
+  bool isFeedTime = isCurrentTimeFeedSchedule(timeinfo.tm_hour, timeinfo.tm_min);
 
   if (isFeedTime && lastFedMinute != timeinfo.tm_min) {
     lastFedMinute = timeinfo.tm_min;
     String errFeed = "";
     if (processFeeding(errFeed)) {
       if (isConnected) {
-        bot.sendMessage(CHAT_ID, "🔔 *Laporan Otomatis:*\nPakan ikan terjadwal selesai diberikan (" + String(feedCountToday) + "/" + String(MAX_FEED_PER_DAY) + " kali hari ini).", "Markdown");
+        bot.sendMessage(CHAT_ID, "🔔 *Laporan Otomatis:*\nPakan ikan terjadwal selesai diberikan (" + String(feedCountToday) + "/" + String(maxFeedPerDay) + " kali hari ini).", "Markdown");
       }
     } else {
       if (isConnected) {
-        bot.sendMessage(CHAT_ID, "🔔 *Laporan Otomatis:*\nJadwal pakan dilewati karena kuota hari ini sudah penuh (" + String(MAX_FEED_PER_DAY) + " kali).", "Markdown");
+        bot.sendMessage(CHAT_ID, "🔔 *Laporan Otomatis:*\nJadwal pakan dilewati karena kuota hari ini sudah penuh (" + String(maxFeedPerDay) + " kali).", "Markdown");
       }
     }
   } else if (!isFeedTime) {

@@ -20,8 +20,8 @@ Dirancang khusus untuk menjaga ekosistem aquascape tetap stabil: mencegah *overf
 - 🎨 **Transisi Mode Lampu Non-Blocking (Kandila MC-5 Compatible)**
   - Mengatur siklus pulsa daya untuk berpindah ke Mode Warna 1, 2, atau 3.
   - Dijalankan menggunakan mesin status waktu (`millis()`), menjaga web server dan sistem tetap responsif tanpa jeda beku (*zero blocking delay*).
-- 🐟 **Otomasi Pakan Terjadwal & Proteksi Overfeeding**
-  - Penjadwalan pakan 2 kali sehari dengan penyimpanan kuota di memori non-volatile.
+- 🐟 **Otomasi Pakan Terjadwal & Proteksi Overfeeding Dinamis**
+  - Penjadwalan pakan multi-waktu dinamis dengan kuota maksimal harian otomatis menyesuaikan jumlah jam yang diset.
   - Penggerak servo dengan fitur *auto-relax* setelah berputar untuk menghemat daya dan memperpanjang umur aktuator.
   - Dialog konfirmasi aman via bot jika pengguna mencoba memberi makan berlebih.
 - 🫧 **Kontrol Aliran Buih Filter**
@@ -105,24 +105,27 @@ Buka `secrets.h` dan sesuaikan nilainya:
 | Perintah | Deskripsi |
 | :--- | :--- |
 | `/status` | Menampilkan ringkasan status lampu, durasi harian, level buih, status pakan, jam perangkat, dan IP lokal. |
-| `/pakan` | Memberikan pakan ikan (maksimal kuota 2x sehari). |
+| `/pakan` | Memberikan pakan ikan (kuota harian otomatis sesuai jumlah jadwal). |
 | `/reset_pakan` | Mereset kuota pakan harian ke 0. |
 | `/buih [0-100]` | Mengatur persentase bukaan katup buih filter (contoh: `/buih 75`). |
 | `/buih_on` | Membuka buih maksimal (100%). |
 | `/buih_off` | Menutup buih filter (0%). |
-| `/lampu_on` | Menyalakan lampu akuarium secara manual. |
-| `/lampu_off` | Mematikan lampu akuarium secara manual. |
-| `/warna1` - `/warna3` | Mengubah mode warna lampu (Mode 1, Mode 2, atau Mode 3). |
-| `/otomatis` | Mengembalikan siklus lampu ke jadwal otomatis. |
+| `/lampu_on` | Menyalakan lampu akuarium (konfirmasi muncul jika di luar jadwal atau melebihi 8 jam). |
+| `/lampu_off` | Mematikan lampu akuarium secara manual (konfirmasi muncul jika sedang dalam jadwal aktif). |
+| `/warna1` - `/warna3` | Mengubah mode warna lampu (konfirmasi muncul jika di luar jadwal saat lampu padam). |
 | `/set_lampu [sesi]` | Mengatur jadwal lampu dinamis (maksimal total 8 jam sehari). |
-| `/set_pakan1 [HH:MM]` | Mengatur jadwal pakan sesi pertama (contoh: `/set_pakan1 08:30`). |
-| `/set_pakan2 [HH:MM]` | Mengatur jadwal pakan sesi kedua (contoh: `/set_pakan2 16:30`). |
+| `/set_pakan [jam, ...]` | Mengatur jadwal pakan dinamis (kuota harian otomatis mengikuti jumlah jam yang diset). |
 | `/batal` | Membatalkan permintaan konfirmasi aktif. |
 
-### Contoh Format Jadwal Lampu Dinamis
-- **1 Sesi:** `/set_lampu 10:00-18:00`
-- **2 Sesi:** `/set_lampu 09:00-13:00, 17:00-21:00`
-- **3 Sesi:** `/set_lampu 07:00-09:00, 12:00-14:00, 18:00-22:00`
+### Contoh Format Jadwal Lampu & Pakan Dinamis
+- **Jadwal Lampu:**
+  - 1 Sesi: `/set_lampu 10:00-18:00`
+  - 2 Sesi: `/set_lampu 09:00-13:00, 17:00-21:00`
+  - 3 Sesi: `/set_lampu 07:00-09:00, 12:00-14:00, 18:00-22:00`
+- **Jadwal Pakan:**
+  - 1 Waktu (Maks 1x): `/set_pakan 08:00`
+  - 2 Waktu (Maks 2x): `/set_pakan 07:00, 16:00`
+  - 3 Waktu (Maks 3x): `/set_pakan 07:00, 12:00, 18:00`
 
 ---
 
