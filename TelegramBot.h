@@ -657,7 +657,7 @@ void initTelegramConnection() {
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   secured_client.setInsecure();
-  secured_client.setTimeout(10);
+  secured_client.setTimeout(3);
 
   String startMsg = "🌿 *Sistem Akuarium Aktif*\n\n";
   startMsg += "Semua sistem berjalan normal.\n";

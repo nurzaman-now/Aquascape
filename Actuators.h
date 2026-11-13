@@ -69,7 +69,7 @@ void feedFish() {
 
 // --- TRANSISI WARNA & DAYA LAMPU (NON-BLOCKING MC-5) ---
 void updateLampTransition() {
-  if (!lampTransition.active || millis() < lampTransition.nextStepTime) return;
+  if (!lampTransition.active || (long)(millis() - lampTransition.nextStepTime) < 0) return;
 
   switch (lampTransition.step) {
     case 0: // Reset phase: matikan daya relai selama 6.5 detik
