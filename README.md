@@ -20,7 +20,8 @@ Dirancang khusus untuk menjaga ekosistem aquascape tetap stabil: mencegah *overf
 - 🎨 **Transisi Mode Lampu Non-Blocking (Kandila MC-5 Compatible)**
   - Mengatur siklus pulsa daya untuk berpindah ke Mode Warna 1, 2, atau 3.
   - Dijalankan menggunakan mesin status waktu (`millis()`), menjaga web server dan sistem tetap responsif tanpa jeda beku (*zero blocking delay*).
-- 🐟 **Otomasi Pakan Terjadwal & Proteksi Overfeeding Dinamis**
+- 🐟 **Otomasi Pakan Terjadwal, Porsi Adaptif & Proteksi Overfeeding Dinamis**
+  - Pengaturan porsi pakan adaptif (`/porsi`) dengan 3 pilihan: Sedikit (1–2 ekor), Sedang (3–5 ekor), dan Standar (> 5 ekor).
   - Penjadwalan pakan multi-waktu dinamis dengan kuota maksimal harian otomatis menyesuaikan jumlah jam yang diset.
   - Penggerak servo dengan fitur *auto-relax* setelah berputar untuk menghemat daya dan memperpanjang umur aktuator.
   - Dialog konfirmasi aman via bot jika pengguna mencoba memberi makan berlebih.
@@ -104,28 +105,68 @@ Buka `secrets.h` dan sesuaikan nilainya:
 
 | Perintah | Deskripsi |
 | :--- | :--- |
-| `/status` | Menampilkan ringkasan status lampu, durasi harian, level buih, status pakan, jam perangkat, dan IP lokal. |
+| `/status` | Menampilkan ringkasan kondisi lampu, durasi harian, level buih filter, jadwal, porsi, dan riwayat pakan ikan. |
 | `/pakan` | Memberikan pakan ikan (kuota harian otomatis sesuai jumlah jadwal). |
+| `/porsi` | Mengatur porsi pakan sesuai jumlah ikan (1: Sedikit, 2: Sedang, 3: Standar). |
 | `/reset_pakan` | Mereset kuota pakan harian ke 0. |
 | `/buih [0-100]` | Mengatur persentase bukaan katup buih filter (contoh: `/buih 75`). |
 | `/buih_on` | Membuka buih maksimal (100%). |
 | `/buih_off` | Menutup buih filter (0%). |
 | `/lampu_on` | Menyalakan lampu akuarium (konfirmasi muncul jika di luar jadwal atau melebihi 8 jam). |
 | `/lampu_off` | Mematikan lampu akuarium secara manual (konfirmasi muncul jika sedang dalam jadwal aktif). |
-| `/warna1` - `/warna3` | Mengubah mode warna lampu (konfirmasi muncul jika di luar jadwal saat lampu padam). |
-| `/set_lampu [sesi]` | Mengatur jadwal lampu dinamis (maksimal total 8 jam sehari). |
-| `/set_pakan [jam, ...]` | Mengatur jadwal pakan dinamis (kuota harian otomatis mengikuti jumlah jam yang diset). |
+| `/warna` | Memilih mode warna lampu (pilihan 1, 2, atau 3 via tombol). |
+| `/set_lampu` | Mengatur jadwal nyala lampu secara interaktif (pilihan jam 24 jam langkah demi langkah). |
+| `/set_pakan` | Mengatur jadwal makan ikan secara interaktif (pilihan jam 24 jam langkah demi langkah). |
 | `/batal` | Membatalkan permintaan konfirmasi aktif. |
+| `/help` | Menampilkan menu bantuan dan papan tombol kontrol. |
 
-### Contoh Format Jadwal Lampu & Pakan Dinamis
-- **Jadwal Lampu:**
-  - 1 Sesi: `/set_lampu 10:00-18:00`
-  - 2 Sesi: `/set_lampu 09:00-13:00, 17:00-21:00`
-  - 3 Sesi: `/set_lampu 07:00-09:00, 12:00-14:00, 18:00-22:00`
-- **Jadwal Pakan:**
-  - 1 Waktu (Maks 1x): `/set_pakan 08:00`
-  - 2 Waktu (Maks 2x): `/set_pakan 07:00, 16:00`
-  - 3 Waktu (Maks 3x): `/set_pakan 07:00, 12:00, 18:00`
+### 📋 Daftar Perintah untuk BotFather (Tinggal Salin)
+Salin teks di bawah ini ke `@BotFather` saat mengatur menu perintah (`/setcommands`):
+
+```text
+status - Kondisi akuarium saat ini
+pakan - Beri makan ikan sekarang
+porsi - Atur porsi pakan ikan
+buih - Atur gelembung buih filter (0-100%)
+buih_on - Buka penuh buih filter (100%)
+buih_off - Matikan buih filter (0%)
+lampu_on - Nyalakan lampu akuarium
+lampu_off - Matikan lampu akuarium
+warna - Pilih mode warna lampu
+set_lampu - Atur jadwal nyala lampu
+set_pakan - Atur jadwal makan ikan
+reset_pakan - Reset hitungan pakan hari ini
+batal - Batalkan perintah aktif
+help - Buka menu bantuan
+```
+
+### 🍽️ Pengaturan Porsi Pakan Adaptif (`/porsi`)
+Ketika populasi ikan berubah (misal tinggal 1–3 ekor), porsi pakan dapat diturunkan agar makanan tidak tersisa dan mengotori air:
+- Tekan tombol `/porsi` pada menu Telegram.
+- Pilih opsi yang sesuai:
+  - **1**: Sedikit (1–2 ekor) ~180 ms buka katup.
+  - **2**: Sedang (3–5 ekor) ~350 ms buka katup.
+  - **3**: Standar (> 5 ekor) ~500 ms (0.5 detik) buka katup.
+- Pengaturan porsi disimpan secara permanen di memori flash dan tampil pada status `/status`.
+
+### 🗓️ Panduan Pengaturan Jadwal Interaktif (Tanya-Jawab & Keyboard 24 Jam)
+- **Papan Tombol 24 Jam (Tanpa Perlu Mengetik):**
+  Saat bot meminta jam (nyala, padam, atau jam pakan), bot akan memunculkan keyboard tombol jam 24 jam (`00:00` s/d `23:00`). Anda cukup menekan tombol jam yang diinginkan tanpa harus mengetik manual.
+
+- **Jadwal Lampu (`/set_lampu`):**
+  1. Ketik `/set_lampu` atau tekan tombolnya di keyboard.
+  2. Pilih **jam nyala (jam awal)** untuk sesi pertama pada tombol keyboard (contoh: `09:00`).
+  3. Pilih **jam padam (jam akhir)** untuk sesi pertama pada tombol keyboard (contoh: `13:00`).
+  4. Bot menampilkan konfirmasi apakah ingin menambah sesi berikutnya (`Ya` / `Tidak`).
+  5. Jika pilih `Ya`, pilih jam nyala dan jam padam untuk sesi berikutnya (contoh: awal `17:00`, akhir `21:00`).
+  6. Jika pilih `Tidak`, seluruh jadwal langsung tersimpan (maksimal total durasi 8 jam per hari).
+
+- **Jadwal Pakan (`/set_pakan`):**
+  1. Ketik `/set_pakan` atau tekan tombolnya di keyboard.
+  2. Pilih **jam makan pertama** pada tombol keyboard (contoh: `07:00`).
+  3. Bot menanyakan apakah ada waktu makan berikutnya (`Ya` / `Tidak`).
+  4. Jika pilih `Ya`, pilih jam makan berikutnya (contoh: `16:00`).
+  5. Jika pilih `Tidak`, seluruh jam makan tersimpan dan kuota harian otomatis menyesuaikan jumlah sesi yang diset.
 
 ---
 
