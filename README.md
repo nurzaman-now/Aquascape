@@ -87,9 +87,22 @@ Buka `secrets.h` dan sesuaikan nilainya:
 > File `secrets.h` sudah otomatis masuk ke dalam `.gitignore` sehingga tidak akan terunggah ke repositori publik.
 
 ### 2. Unggah Kode ke Board
-- Buka `Aquascape.ino` di Arduino IDE.
+- Buka `Aquascape.ino` di Arduino IDE (seluruh file modul `.h` otomatis muncul sebagai tab tersendiri).
 - Pilih board ESP32 yang sesuai (contoh: *ESP32 Dev Module* atau *ESP32S3 Dev Module*).
 - Lakukan proses compile dan flash (*Upload*).
+
+### 📁 Struktur File Modular Proyek
+Kode program telah dipecah secara modular untuk memudahkan pemeliharaan:
+```text
+Aquascape/
+├── Aquascape.ino       # Entry point utama: setup(), loop(), & perintah serial
+├── secrets.h           # Kredensial rahasia (token bot & WiFi)
+├── Config.h            # Jalur pinout, konstanta, objek global, & variabel status
+├── Actuators.h         # Kontrol PWM servo (pakan/buih) & transisi pulsa lampu
+├── Scheduler.h         # Logika jadwal lampu/pakan, anti-overlap, & proteksi alga
+├── WiFiPortal.h        # Web portal setup WiFi (halaman HTML & Captive Portal)
+└── TelegramBot.h       # Handler pesan Telegram, menu tombol 24 jam, & wizard
+```
 
 ### 3. Konfigurasi Jaringan WiFi (Pertama Kali)
 1. Setelah menyala, jika belum terhubung ke WiFi, ESP32 akan memancarkan hotspot Access Point:
