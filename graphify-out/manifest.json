@@ -1,0 +1,38 @@
+{
+  "Actuators.h": {
+    "mtime": 1794803904.3816082,
+    "seen": 1794809613.7037492,
+    "ast_hash": "63e126138b24adc09ce6069237786c2d",
+    "semantic_hash": "63e126138b24adc09ce6069237786c2d"
+  },
+  "Config.h": {
+    "mtime": 1794590491.613685,
+    "seen": 1794809613.703752,
+    "ast_hash": "cf7fef0f717f896cdec99399b517dba3",
+    "semantic_hash": "cf7fef0f717f896cdec99399b517dba3"
+  },
+  "Scheduler.h": {
+    "mtime": 1794590555.6012032,
+    "seen": 1794809613.703753,
+    "ast_hash": "67d20ee1ba76d0801dd2c131f96228cf",
+    "semantic_hash": "67d20ee1ba76d0801dd2c131f96228cf"
+  },
+  "TelegramBot.h": {
+    "mtime": 1794590934.4629786,
+    "seen": 1794809613.703754,
+    "ast_hash": "b4241a3f595404b5f79cf96bf786c590",
+    "semantic_hash": "b4241a3f595404b5f79cf96bf786c590"
+  },
+  "WiFiPortal.h": {
+    "mtime": 1794590593.907354,
+    "seen": 1794809613.703755,
+    "ast_hash": "ffa327aea08638d6b8ae129542e170e1",
+    "semantic_hash": "ffa327aea08638d6b8ae129542e170e1"
+  },
+  "README.md": {
+    "mtime": 1794590739.467849,
+    "seen": 1794809613.703755,
+    "ast_hash": "6e234c993a251a3e5e04807c1704bfd1",
+    "semantic_hash": "6e234c993a251a3e5e04807c1704bfd1"
+  }
+}
