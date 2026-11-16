@@ -62,7 +62,7 @@ void setFeedPortion(int mode) {
 
 void feedFish() {
   Serial.printf("Activating Servo 1 (Feed) - Duration: %d ms...\n", feedOpenDurationMs);
-  moveServo(SERVO1_PIN, 0, 90, feedOpenDurationMs, false);
+  moveServo(SERVO1_PIN, 0, 45, feedOpenDurationMs, false);
   moveServo(SERVO1_PIN, 0, 0, 400, true);
   Serial.println("Servo 1 (Feed) complete.");
 }
