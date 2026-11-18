@@ -30,7 +30,6 @@ void askLampOffConfirmation(String chatId) {
 void executeSelectLampColor(String chatId, int mode) {
   if (mode < 1 || mode > 3) {
     bot.sendMessage(chatId, "⚠️ Pilihan warna tidak valid. Silakan pilih 1, 2, atau 3.", "");
-    sendHelpMenu(chatId);
     return;
   }
 
@@ -45,7 +44,6 @@ void executeSelectLampColor(String chatId, int mode) {
     pref.putInt("lamp_mode", currentLampMode);
     setLampColor(mode);
     bot.sendMessage(chatId, "🎨 Warna lampu diubah ke: *Mode " + String(mode) + "*", "Markdown");
-    sendHelpMenu(chatId);
   } else if (!inSchedule || overLimit) {
     String reason = "";
     if (!inSchedule && overLimit) {
@@ -61,7 +59,6 @@ void executeSelectLampColor(String chatId, int mode) {
     pref.putInt("lamp_mode", currentLampMode);
     turnLampOnManual(mode);
     bot.sendMessage(chatId, "💡 Lampu dinyalakan dengan *Mode Warna " + String(mode) + "*", "Markdown");
-    sendHelpMenu(chatId);
   }
 }
 
@@ -81,7 +78,6 @@ void finalizeLampSchedule(String chatId) {
   if (tempLampCount == 0) {
     bot.sendMessage(chatId, "⚠️ Tidak ada sesi jadwal lampu yang disimpan.", "");
     lampWizState = LAMP_WIZ_IDLE;
-    sendHelpMenu(chatId);
     return;
   }
 
@@ -115,7 +111,6 @@ void finalizeLampSchedule(String chatId) {
   resp += formatLampSessionList();
   resp += "\n⏱️ *Total Nyala:* " + String(totalPlanMinutes / 60) + " jam " + String(totalPlanMinutes % 60) + " menit per hari (Maks. 8 jam).";
   bot.sendMessage(chatId, resp, "Markdown");
-  sendHelpMenu(chatId);
 }
 
 void startLampScheduleWizard(String chatId) {
@@ -140,7 +135,6 @@ void handleLampWizardInput(String chatId, String text) {
   if (millis() - lampWizTime > 120000) {
     lampWizState = LAMP_WIZ_IDLE;
     bot.sendMessage(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "");
-    sendHelpMenu(chatId);
     return;
   }
 
@@ -234,7 +228,6 @@ void finalizeFeedSchedule(String chatId) {
   if (tempFeedCount == 0) {
     bot.sendMessage(chatId, "⚠️ Tidak ada jadwal pakan yang disimpan.", "");
     feedWizState = FEED_WIZ_IDLE;
-    sendHelpMenu(chatId);
     return;
   }
 
@@ -268,7 +261,6 @@ void finalizeFeedSchedule(String chatId) {
   resp += "• Jam Makan: " + formatFeedScheduleList() + "\n";
   resp += "• Batas Harian: *" + String(maxFeedPerDay) + " kali sehari*";
   bot.sendMessage(chatId, resp, "Markdown");
-  sendHelpMenu(chatId);
 }
 
 void startFeedScheduleWizard(String chatId) {
@@ -293,7 +285,6 @@ void handleFeedWizardInput(String chatId, String text) {
   if (millis() - feedWizTime > 120000) {
     feedWizState = FEED_WIZ_IDLE;
     bot.sendMessage(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "");
-    sendHelpMenu(chatId);
     return;
   }
 
@@ -394,7 +385,6 @@ void handleTelegramMessages(int totalMessages) {
       lampWizState = LAMP_WIZ_IDLE;
       feedWizState = FEED_WIZ_IDLE;
       bot.sendMessage(chatId, "❌ Tindakan dibatalkan.", "");
-      sendHelpMenu(chatId);
       continue;
     }
 
@@ -478,7 +468,6 @@ void handleTelegramMessages(int totalMessages) {
       if (millis() - colorSelectionTime > 120000) {
         waitingColorSelection = false;
         bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "");
-        sendHelpMenu(chatId);
       } else {
         waitingColorSelection = false;
         executeSelectLampColor(chatId, text.toInt());
@@ -512,13 +501,11 @@ void handleTelegramMessages(int totalMessages) {
       if (millis() - portionSelectionTime > 120000) {
         waitingPortionSelection = false;
         bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "");
-        sendHelpMenu(chatId);
       } else {
         waitingPortionSelection = false;
         int mode = text.toInt();
         setFeedPortion(mode);
         bot.sendMessage(chatId, "✅ Porsi pakan diatur ke: *" + getPortionName(feedPortionMode) + "*", "Markdown");
-        sendHelpMenu(chatId);
       }
     } else if (text.startsWith("/porsi ")) {
       waitingPortionSelection = false;
@@ -529,7 +516,6 @@ void handleTelegramMessages(int totalMessages) {
       } else {
         bot.sendMessage(chatId, "⚠️ Pilihan porsi tidak valid. Pilih 1 (Sedikit), 2 (Sedang), atau 3 (Standar).", "");
       }
-      sendHelpMenu(chatId);
     } else if (text == "/pakan") {
       waitingColorSelection = false;
       waitingPortionSelection = false;
@@ -567,7 +553,6 @@ void handleTelegramMessages(int totalMessages) {
       if (!waitingFeedConfirmation || (millis() - feedConfirmationTime > 120000)) {
         waitingFeedConfirmation = false;
         bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan ketik /pakan kembali.", "");
-        sendHelpMenu(chatId);
       } else {
         waitingFeedConfirmation = false;
         String errFeed = "";
@@ -576,7 +561,6 @@ void handleTelegramMessages(int totalMessages) {
         } else {
           bot.sendMessage(chatId, errFeed, "Markdown");
         }
-        sendHelpMenu(chatId);
       }
     } else if (text == "/ya_lampu") {
       if (!waitingLampConfirmation || (millis() - lampConfirmationTime > 120000)) {
@@ -590,7 +574,6 @@ void handleTelegramMessages(int totalMessages) {
         turnLampOnManual(currentLampMode);
         bot.sendMessage(chatId, "💡 Lampu dinyalakan (Warna " + String(currentLampMode) + ").", "");
       }
-      sendHelpMenu(chatId);
     } else if (text == "/ya_lampu_off") {
       if (!waitingLampOffConfirmation || (millis() - lampOffConfirmationTime > 120000)) {
         waitingLampOffConfirmation = false;
@@ -600,7 +583,6 @@ void handleTelegramMessages(int totalMessages) {
         turnLampOffManual();
         bot.sendMessage(chatId, "🌑 Lampu dimatikan (akan menyala kembali saat jadwal berikutnya tiba).", "");
       }
-      sendHelpMenu(chatId);
     } else if (text == "/reset_pakan") {
       feedCountToday = 0;
       lastFedTime = "--:--";
