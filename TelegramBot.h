@@ -7,6 +7,15 @@
 // Forward declaration
 void sendHelpMenu(String chatId);
 
+// --- KEYBOARD TOMBOL MENU UTAMA ---
+const char MAIN_KEYBOARD_JSON[] = "["
+  "[\"/pakan\", \"/status\"],"
+  "[\"/buih_on\", \"/buih_off\"],"
+  "[\"/lampu_on\", \"/lampu_off\"],"
+  "[\"/warna\", \"/porsi\"],"
+  "[\"/set_lampu\", \"/set_pakan\"]"
+"]";
+
 // --- KONFIRMASI INTERAKTIF LAMPU ---
 void askLampConfirmation(String chatId, String reason, int targetMode) {
   pendingLampMode = targetMode;
@@ -29,7 +38,7 @@ void askLampOffConfirmation(String chatId) {
 
 void executeSelectLampColor(String chatId, int mode) {
   if (mode < 1 || mode > 3) {
-    bot.sendMessage(chatId, "⚠️ Pilihan warna tidak valid. Silakan pilih 1, 2, atau 3.", "");
+    bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Pilihan warna tidak valid. Silakan pilih 1, 2, atau 3.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     return;
   }
 
@@ -43,7 +52,7 @@ void executeSelectLampColor(String chatId, int mode) {
     currentLampMode = mode;
     pref.putInt("lamp_mode", currentLampMode);
     setLampColor(mode);
-    bot.sendMessage(chatId, "🎨 Warna lampu diubah ke: *Mode " + String(mode) + "*", "Markdown");
+    bot.sendMessageWithReplyKeyboard(chatId, "🎨 Warna lampu diubah ke: *Mode " + String(mode) + "*", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
   } else if (!inSchedule || overLimit) {
     String reason = "";
     if (!inSchedule && overLimit) {
@@ -58,7 +67,7 @@ void executeSelectLampColor(String chatId, int mode) {
     currentLampMode = mode;
     pref.putInt("lamp_mode", currentLampMode);
     turnLampOnManual(mode);
-    bot.sendMessage(chatId, "💡 Lampu dinyalakan dengan *Mode Warna " + String(mode) + "*", "Markdown");
+    bot.sendMessageWithReplyKeyboard(chatId, "💡 Lampu dinyalakan dengan *Mode Warna " + String(mode) + "*", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
   }
 }
 
@@ -76,7 +85,7 @@ const char HOUR_KEYBOARD_JSON[] = "["
 // --- WIZARD JADWAL LAMPU INTERAKTIF ---
 void finalizeLampSchedule(String chatId) {
   if (tempLampCount == 0) {
-    bot.sendMessage(chatId, "⚠️ Tidak ada sesi jadwal lampu yang disimpan.", "");
+    bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Tidak ada sesi jadwal lampu yang disimpan.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     lampWizState = LAMP_WIZ_IDLE;
     return;
   }
@@ -110,7 +119,7 @@ void finalizeLampSchedule(String chatId) {
   String resp = "✅ *Jadwal Lampu Berhasil Disimpan!*\n\n";
   resp += formatLampSessionList();
   resp += "\n⏱️ *Total Nyala:* " + String(totalPlanMinutes / 60) + " jam " + String(totalPlanMinutes % 60) + " menit per hari (Maks. 8 jam).";
-  bot.sendMessage(chatId, resp, "Markdown");
+  bot.sendMessageWithReplyKeyboard(chatId, resp, "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
 }
 
 void startLampScheduleWizard(String chatId) {
@@ -134,7 +143,7 @@ void startLampScheduleWizard(String chatId) {
 void handleLampWizardInput(String chatId, String text) {
   if (millis() - lampWizTime > 120000) {
     lampWizState = LAMP_WIZ_IDLE;
-    bot.sendMessage(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "");
+    bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     return;
   }
 
@@ -226,7 +235,7 @@ void handleLampWizardInput(String chatId, String text) {
 // --- WIZARD JADWAL PAKAN INTERAKTIF ---
 void finalizeFeedSchedule(String chatId) {
   if (tempFeedCount == 0) {
-    bot.sendMessage(chatId, "⚠️ Tidak ada jadwal pakan yang disimpan.", "");
+    bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Tidak ada jadwal pakan yang disimpan.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     feedWizState = FEED_WIZ_IDLE;
     return;
   }
@@ -260,7 +269,7 @@ void finalizeFeedSchedule(String chatId) {
   String resp = "✅ *Jadwal Pakan Berhasil Disimpan!*\n\n";
   resp += "• Jam Makan: " + formatFeedScheduleList() + "\n";
   resp += "• Batas Harian: *" + String(maxFeedPerDay) + " kali sehari*";
-  bot.sendMessage(chatId, resp, "Markdown");
+  bot.sendMessageWithReplyKeyboard(chatId, resp, "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
 }
 
 void startFeedScheduleWizard(String chatId) {
@@ -284,7 +293,7 @@ void startFeedScheduleWizard(String chatId) {
 void handleFeedWizardInput(String chatId, String text) {
   if (millis() - feedWizTime > 120000) {
     feedWizState = FEED_WIZ_IDLE;
-    bot.sendMessage(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "");
+    bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu pengaturan habis (melebihi 2 menit).", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     return;
   }
 
@@ -345,14 +354,7 @@ void sendHelpMenu(String chatId) {
   msg += "• `/set_pakan` - Atur jadwal makan ikan\n";
   msg += "• `/reset_pakan` - Reset hitungan pakan hari ini\n";
 
-  String keyboardJson = "["
-                        "[\"/pakan\", \"/status\"],"
-                        "[\"/buih_on\", \"/buih_off\"],"
-                        "[\"/lampu_on\", \"/lampu_off\"],"
-                        "[\"/warna\", \"/porsi\"],"
-                        "[\"/set_lampu\", \"/set_pakan\"]"
-                        "]";
-  bot.sendMessageWithReplyKeyboard(chatId, msg, "Markdown", keyboardJson, true, false, false);
+  bot.sendMessageWithReplyKeyboard(chatId, msg, "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
 }
 
 void handleTelegramMessages(int totalMessages) {
@@ -384,7 +386,7 @@ void handleTelegramMessages(int totalMessages) {
       waitingPortionSelection = false;
       lampWizState = LAMP_WIZ_IDLE;
       feedWizState = FEED_WIZ_IDLE;
-      bot.sendMessage(chatId, "❌ Tindakan dibatalkan.", "");
+      bot.sendMessageWithReplyKeyboard(chatId, "❌ Tindakan dibatalkan.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       continue;
     }
 
@@ -403,7 +405,7 @@ void handleTelegramMessages(int totalMessages) {
     if (text.startsWith("/buih")) {
       int lvl = (text == "/buih_on") ? 100 : (text == "/buih_off") ? 0 : text.substring(6).toInt();
       setBubbleLevel(lvl);
-      bot.sendMessage(chatId, "🫧 Gelembung buih diatur ke: *" + String(bubbleLevel) + "%*", "Markdown");
+      bot.sendMessageWithReplyKeyboard(chatId, "🫧 Gelembung buih diatur ke: *" + String(bubbleLevel) + "%*", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     } else if (text == "/lampu_on") {
       waitingColorSelection = false;
       waitingPortionSelection = false;
@@ -416,7 +418,7 @@ void handleTelegramMessages(int totalMessages) {
       bool overLimit = (lampOnMinutesToday >= MAX_LAMP_MINUTES_PER_DAY && !manualLampConfirmed);
 
       if (lampState) {
-        bot.sendMessage(chatId, "💡 Lampu sudah menyala.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "💡 Lampu sudah menyala.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else if (!inSchedule || overLimit) {
         String reason = "";
         if (!inSchedule && overLimit) {
@@ -429,7 +431,7 @@ void handleTelegramMessages(int totalMessages) {
         askLampConfirmation(chatId, reason, currentLampMode);
       } else {
         turnLampOnManual(currentLampMode);
-        bot.sendMessage(chatId, "💡 Lampu dinyalakan (Warna " + String(currentLampMode) + ").", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "💡 Lampu dinyalakan (Warna " + String(currentLampMode) + ").", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text == "/lampu_off") {
       waitingColorSelection = false;
@@ -442,12 +444,12 @@ void handleTelegramMessages(int totalMessages) {
       bool inSchedule = (curMin >= 0) ? shouldLampBeOn(curMin) : false;
 
       if (!lampState) {
-        bot.sendMessage(chatId, "🌑 Lampu sudah padam.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "🌑 Lampu sudah padam.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else if (inSchedule) {
         askLampOffConfirmation(chatId);
       } else {
         turnLampOffManual();
-        bot.sendMessage(chatId, "🌑 Lampu dimatikan.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "🌑 Lampu dimatikan.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text == "/warna") {
       waitingPortionSelection = false;
@@ -467,7 +469,7 @@ void handleTelegramMessages(int totalMessages) {
     } else if (waitingColorSelection && (text == "1" || text == "2" || text == "3")) {
       if (millis() - colorSelectionTime > 120000) {
         waitingColorSelection = false;
-        bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
         waitingColorSelection = false;
         executeSelectLampColor(chatId, text.toInt());
@@ -500,21 +502,21 @@ void handleTelegramMessages(int totalMessages) {
     } else if (waitingPortionSelection && (text == "1" || text == "2" || text == "3")) {
       if (millis() - portionSelectionTime > 120000) {
         waitingPortionSelection = false;
-        bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu konfirmasi habis. Silakan pilih menu kembali.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
         waitingPortionSelection = false;
         int mode = text.toInt();
         setFeedPortion(mode);
-        bot.sendMessage(chatId, "✅ Porsi pakan diatur ke: *" + getPortionName(feedPortionMode) + "*", "Markdown");
+        bot.sendMessageWithReplyKeyboard(chatId, "✅ Porsi pakan diatur ke: *" + getPortionName(feedPortionMode) + "*", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text.startsWith("/porsi ")) {
       waitingPortionSelection = false;
       int mode = text.substring(7).toInt();
       if (mode >= 1 && mode <= 3) {
         setFeedPortion(mode);
-        bot.sendMessage(chatId, "✅ Porsi pakan diatur ke: *" + getPortionName(feedPortionMode) + "*", "Markdown");
+        bot.sendMessageWithReplyKeyboard(chatId, "✅ Porsi pakan diatur ke: *" + getPortionName(feedPortionMode) + "*", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
-        bot.sendMessage(chatId, "⚠️ Pilihan porsi tidak valid. Pilih 1 (Sedikit), 2 (Sedang), atau 3 (Standar).", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Pilihan porsi tidak valid. Pilih 1 (Sedikit), 2 (Sedang), atau 3 (Standar).", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text == "/pakan") {
       waitingColorSelection = false;
@@ -552,43 +554,43 @@ void handleTelegramMessages(int totalMessages) {
     } else if (text == "/ya_pakan") {
       if (!waitingFeedConfirmation || (millis() - feedConfirmationTime > 120000)) {
         waitingFeedConfirmation = false;
-        bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan ketik /pakan kembali.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu konfirmasi habis. Silakan ketik /pakan kembali.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
         waitingFeedConfirmation = false;
         String errFeed = "";
         if (processFeeding(errFeed)) {
-          bot.sendMessage(chatId, "🐟 Nyam! Pakan berhasil diberikan (ke-" + String(feedCountToday) + " dari batas " + String(maxFeedPerDay) + " kali hari ini).", "Markdown");
+          bot.sendMessageWithReplyKeyboard(chatId, "🐟 Nyam! Pakan berhasil diberikan (ke-" + String(feedCountToday) + " dari batas " + String(maxFeedPerDay) + " kali hari ini).", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
         } else {
-          bot.sendMessage(chatId, errFeed, "Markdown");
+          bot.sendMessageWithReplyKeyboard(chatId, errFeed, "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
         }
       }
     } else if (text == "/ya_lampu") {
       if (!waitingLampConfirmation || (millis() - lampConfirmationTime > 120000)) {
         waitingLampConfirmation = false;
-        bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan ulangi perintah.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu konfirmasi habis. Silakan ulangi perintah.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
         waitingLampConfirmation = false;
         manualLampConfirmed = true;
         currentLampMode = pendingLampMode;
         pref.putInt("lamp_mode", currentLampMode);
         turnLampOnManual(currentLampMode);
-        bot.sendMessage(chatId, "💡 Lampu dinyalakan (Warna " + String(currentLampMode) + ").", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "💡 Lampu dinyalakan (Warna " + String(currentLampMode) + ").", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text == "/ya_lampu_off") {
       if (!waitingLampOffConfirmation || (millis() - lampOffConfirmationTime > 120000)) {
         waitingLampOffConfirmation = false;
-        bot.sendMessage(chatId, "⚠️ Waktu konfirmasi habis. Silakan ulangi perintah.", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "⚠️ Waktu konfirmasi habis. Silakan ulangi perintah.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       } else {
         waitingLampOffConfirmation = false;
         turnLampOffManual();
-        bot.sendMessage(chatId, "🌑 Lampu dimatikan (akan menyala kembali saat jadwal berikutnya tiba).", "");
+        bot.sendMessageWithReplyKeyboard(chatId, "🌑 Lampu dimatikan (akan menyala kembali saat jadwal berikutnya tiba).", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
       }
     } else if (text == "/reset_pakan") {
       feedCountToday = 0;
       lastFedTime = "--:--";
       pref.putInt("f_cnt", 0);
       pref.putString("last_fed", lastFedTime);
-      bot.sendMessage(chatId, "🔄 Hitungan pakan hari ini telah di-reset ke 0 kali.", "");
+      bot.sendMessageWithReplyKeyboard(chatId, "🔄 Hitungan pakan hari ini telah di-reset ke 0 kali.", "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     } else if (text == "/status") {
       struct tm timeinfo;
       String curTime = "--:--";
@@ -622,7 +624,7 @@ void handleTelegramMessages(int totalMessages) {
       statusMsg += formatLampSessionList();
       statusMsg += "• Durasi Lampu Hari Ini: " + String(lampOnMinutesToday / 60) + " jam " + String(lampOnMinutesToday % 60) + " menit (Maks. 8 jam)\n";
 
-      bot.sendMessage(chatId, statusMsg, "Markdown");
+      bot.sendMessageWithReplyKeyboard(chatId, statusMsg, "Markdown", MAIN_KEYBOARD_JSON, true, false, false);
     } else if (text.startsWith("/set_lampu")) {
       startLampScheduleWizard(chatId);
     } else if (text.startsWith("/set_pakan")) {
